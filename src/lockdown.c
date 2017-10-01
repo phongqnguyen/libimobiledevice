@@ -736,18 +736,23 @@ LIBIMOBILEDEVICE_API lockdownd_error_t lockdownd_client_new_with_handshake(idevi
 	plist_free(pair_record);
 	pair_record = NULL;
 
-	if (device->version < 0x070000) {
-		/* for older devices, we need to validate pairing to receive trusted host status */
+	// iOS 11 doesn't support validate pairing
+	if (device->version < 0x0b0000) {
+		/* in any case, we need to validate pairing to receive trusted host status */
 		ret = lockdownd_validate_pair(client_loc, NULL);
+	}
 
-		/* if not paired yet, let's do it now */
-		if (LOCKDOWN_E_INVALID_HOST_ID == ret) {
-			free(host_id);
-			host_id = NULL;
-			ret = lockdownd_pair(client_loc, NULL);
-			if (LOCKDOWN_E_SUCCESS == ret) {
+	/* if not paired yet, let's do it now */
+	if (LOCKDOWN_E_INVALID_HOST_ID == ret) {
+		free(host_id);
+		host_id = NULL;
+		ret = lockdownd_pair(client_loc, NULL);
+		if (LOCKDOWN_E_SUCCESS == ret) {
+			if (device->version < 0x0b0000) {
 				ret = lockdownd_validate_pair(client_loc, NULL);
 			}
+		} else if (LOCKDOWN_E_PAIRING_DIALOG_RESPONSE_PENDING == ret) {
+			debug_info("Device shows the pairing dialog.");
 		}
 	}
 

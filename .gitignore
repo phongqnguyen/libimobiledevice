@@ -14,6 +14,7 @@ m4/*
 swig/*
 *.swp
 *.patch
+*.vscode
 aclocal.m4
 config.h
 config.log
@@ -53,6 +54,7 @@ tools/ideviceprovision
 tools/idevicecrashreport
 tools/idevicedebug
 tools/idevicenotificationproxy
+tools/idevicelocation
 cython/.libs/*
 cython/*.c
 doxygen.cfg

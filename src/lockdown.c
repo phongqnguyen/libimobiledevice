@@ -219,7 +219,7 @@ static lockdownd_error_t lockdown_check_result(plist_t dict, const char *query_m
 					ret = lockdownd_strtoerr(err_value);
 					free(err_value);
 				} else {
-					debug_info("ERROR: unknown error occured");
+					debug_info("ERROR: unknown error occurred");
 				}
 			}
 			return ret;
@@ -668,6 +668,7 @@ LIBIMOBILEDEVICE_API lockdownd_error_t lockdownd_client_new(idevice_t device, lo
 	client_loc->parent = plistclient;
 	client_loc->ssl_enabled = 0;
 	client_loc->session_id = NULL;
+	client_loc->mux_id = device->mux_id;
 
 	if (idevice_get_udid(device, &client_loc->udid) != IDEVICE_E_SUCCESS) {
 		debug_info("failed to get device udid.");
@@ -707,11 +708,25 @@ LIBIMOBILEDEVICE_API lockdownd_error_t lockdownd_client_new_with_handshake(idevi
 	}
 	free(type);
 
+	if (device->version == 0) {
+		plist_t p_version = NULL;
+		if (lockdownd_get_value(client_loc, NULL, "ProductVersion", &p_version) == LOCKDOWN_E_SUCCESS) {
+			int vers[3] = {0, 0, 0};
+			char *s_version = NULL;
+			plist_get_string_val(p_version, &s_version);
+			if (s_version && sscanf(s_version, "%d.%d.%d", &vers[0], &vers[1], &vers[2]) >= 2) {
+				device->version = DEVICE_VERSION(vers[0], vers[1], vers[2]);
+			}
+			free(s_version);
+		}
+		plist_free(p_version);
+	}
+
 	userpref_read_pair_record(client_loc->udid, &pair_record);
 	if (pair_record) {
 		pair_record_get_host_id(pair_record, &host_id);
 	}
-	if (LOCKDOWN_E_SUCCESS == ret && !host_id) {
+	if (LOCKDOWN_E_SUCCESS == ret && pair_record && !host_id) {
 		ret = LOCKDOWN_E_INVALID_CONF;
 	}
 
@@ -723,18 +738,18 @@ LIBIMOBILEDEVICE_API lockdownd_error_t lockdownd_client_new_with_handshake(idevi
 	plist_free(pair_record);
 	pair_record = NULL;
 
-	/* in any case, we need to validate pairing to receive trusted host status */
-	ret = lockdownd_validate_pair(client_loc, NULL);
+	if (device->version < DEVICE_VERSION(7,0,0)) {
+		/* for older devices, we need to validate pairing to receive trusted host status */
+		ret = lockdownd_validate_pair(client_loc, NULL);
 
-	/* if not paired yet, let's do it now */
-	if (LOCKDOWN_E_INVALID_HOST_ID == ret) {
-		free(host_id);
-		host_id = NULL;
-		ret = lockdownd_pair(client_loc, NULL);
-		if (LOCKDOWN_E_SUCCESS == ret) {
-			ret = lockdownd_validate_pair(client_loc, NULL);
-		} else if (LOCKDOWN_E_PAIRING_DIALOG_RESPONSE_PENDING == ret) {
-			debug_info("Device shows the pairing dialog.");
+		/* if not paired yet, let's do it now */
+		if (LOCKDOWN_E_INVALID_HOST_ID == ret) {
+			free(host_id);
+			host_id = NULL;
+			ret = lockdownd_pair(client_loc, NULL);
+			if (LOCKDOWN_E_SUCCESS == ret) {
+				ret = lockdownd_validate_pair(client_loc, NULL);
+			}
 		}
 	}
 
@@ -987,7 +1002,7 @@ static lockdownd_error_t lockdownd_do_pair(lockdownd_client_t client, lockdownd_
 						wifi_node = NULL;
 					}
 
-					userpref_save_pair_record(client->udid, pair_record_plist);
+					userpref_save_pair_record(client->udid, client->mux_id, pair_record_plist);
 				}
 			}
 		} else {

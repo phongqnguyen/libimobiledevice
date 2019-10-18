@@ -27,6 +27,9 @@
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#ifndef WIN32
+#include <signal.h>
+#endif
 
 #include <libimobiledevice/libimobiledevice.h>
 #include <libimobiledevice/lockdown.h>
@@ -91,7 +94,7 @@ static void print_usage(int argc, char **argv)
 	printf("Show information about a connected device.\n\n");
 	printf("  -d, --debug\t\tenable communication debugging\n");
 	printf("  -s, --simple\t\tuse a simple connection to avoid auto-pairing with the device\n");
-	printf("  -u, --udid UDID\ttarget specific device by its 40-digit device UDID\n");
+	printf("  -u, --udid UDID\ttarget specific device by UDID\n");
 	printf("  -q, --domain NAME\tset domain of query to NAME. Default: None\n");
 	printf("  -k, --key NAME\tonly query key specified by NAME. Default: All keys.\n");
 	printf("  -x, --xml\t\toutput information as xml plist instead of key/value pairs\n");
@@ -121,6 +124,9 @@ int main(int argc, char *argv[])
 	uint32_t xml_length;
 	plist_t node = NULL;
 
+#ifndef WIN32
+	signal(SIGPIPE, SIG_IGN);
+#endif
 	/* parse cmdline args */
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-d") || !strcmp(argv[i], "--debug")) {
@@ -129,7 +135,7 @@ int main(int argc, char *argv[])
 		}
 		else if (!strcmp(argv[i], "-u") || !strcmp(argv[i], "--udid")) {
 			i++;
-			if (!argv[i] || (strlen(argv[i]) != 40)) {
+			if (!argv[i] || !*argv[i]) {
 				print_usage(argc, argv);
 				return 0;
 			}
